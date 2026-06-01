@@ -3,6 +3,7 @@ import express from 'express'
 import dotenv from 'dotenv'
 import colors from 'colors'
 import morgan from 'morgan'
+import mongoose from 'mongoose'
 import { notFound, errorHandler } from './middleware/errorMiddleware.js'
 import connectDB from './config/db.js'
 
@@ -22,6 +23,21 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 app.use(express.json())
+
+app.get('/api/health', (req, res) => {
+  const dbState = mongoose.connection.readyState
+  const isDbUp = dbState === 1
+
+  res.status(isDbUp ? 200 : 503).json({
+    status: isDbUp ? 'ok' : 'degraded',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+    db: {
+      status: isDbUp ? 'up' : 'down',
+      state: dbState,
+    },
+  })
+})
 
 app.use('/api/products', productRoutes)
 app.use('/api/users', userRoutes)
