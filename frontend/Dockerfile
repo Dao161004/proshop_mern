@@ -1,48 +1,81 @@
-# ================================
+# ==============================================================================
 # STAGE 1: Build React App
-# ================================
-FROM node:14-alpine AS builder
+# ==============================================================================
+FROM oven/bun:1-alpine AS builder
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN bun install --frozen-lockfile
+
+COPY . .
+
+ARG REACT_APP_API_URL=/api
+ENV REACT_APP_API_URL=$REACT_APP_API_URL
+# ==============================================================================
+# STAGE 1: Build React App (Bun - fast)
+# ==============================================================================
+FROM oven/bun:1-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy dependency files first (cache optimization)
+COPY package.json package-lock.json ./
 
-# Cài dependencies (use silent install to reduce output)
-RUN npm ci --silent
+RUN bun install --frozen-lockfile
 
-# Copy toàn bộ source frontend
+# Copy source
 COPY . .
 
-# Build production bundle
-# Biến này để React biết đường dẫn API backend
+# Env for React build
 ARG REACT_APP_API_URL=/api
 ENV REACT_APP_API_URL=$REACT_APP_API_URL
-
-# Ensure production mode for the build
 ENV NODE_ENV=production
 
-RUN npm run build
+# Build
+RUN bun run build
 
-# ================================
-# STAGE 2: Serve với Nginx
-# ================================
+# Remove source maps (optional optimization)
+RUN find build -type f -name "*.map" -delete
+
+# Install gzip for precompression
+RUN apk add --no-cache gzip
+
+# Precompress static assets
+RUN find build -type f \( \
+    -name "*.html" -o \
+    -name "*.css" -o \
+    -name "*.js" -o \
+    -name "*.json" -o \
+    -name "*.svg" \
+\) -exec gzip -9 -k -f {} \;
+
+
+# ==============================================================================
+# STAGE 2: Nginx Production (FIXED PERMISSION SAFE)
+# ==============================================================================
 FROM nginx:1.25-alpine AS production
 
-# Xoá config mặc định của Nginx
-RUN rm /etc/nginx/conf.d/default.conf
+# Remove default config
+RUN rm -f /etc/nginx/conf.d/default.conf
 
-# Copy Nginx config tùy chỉnh (tạo file này - xem bên dưới)
-COPY nginx.conf /etc/nginx/conf.d/
+# Copy custom nginx config
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copy static files từ build stage
+# Copy build output
 COPY --from=builder /app/build /usr/share/nginx/html
 
-# Expose port 80
+# Fix permissions ONLY for static files (safe minimal fix)
+RUN chmod -R 755 /usr/share/nginx/html
+
+# Ensure nginx dirs exist (avoid runtime crash)
+RUN mkdir -p /var/cache/nginx /var/run/nginx
+
+# Expose port
 EXPOSE 80
 
-# Health check
+# Healthcheck WITHOUT wget/curl dependency issues
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:80 || exit 1
+  CMD wget -qO- http://localhost >/dev/null 2>&1 || exit 1
 
+# Run nginx in foreground
 CMD ["nginx", "-g", "daemon off;"]
