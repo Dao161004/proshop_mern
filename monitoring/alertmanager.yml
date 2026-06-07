@@ -1,5 +1,9 @@
 route:
   receiver: "telegram"
+  group_by: ["alertname", "instance"]
+  group_wait: 5s
+  group_interval: 10s
+  repeat_interval: 1h
 
 receivers:
   - name: "telegram"
@@ -7,8 +11,14 @@ receivers:
       - bot_token: "YOUR_TELEGRAM_BOT_TOKEN"
         chat_id: YOUR_TELEGRAM_CHAT_ID
         parse_mode: "HTML"
-        message: |
-          🚨 <b>{{ .Status | toUpper }}</b>
-          Alert: {{ .CommonLabels.alertname }}
-          {{ .CommonAnnotations.summary }}
-          Instance: {{ .CommonLabels.instance }}
+        message: |-
+          {{ if eq .Status "firing" }}🚨 <b>CẢNH BÁO QUÁ TẢI SERVER</b> 🚨{{ else }}✅ <b>HỆ THỐNG ĐÃ ỔN ĐỊNH</b> ✅{{ end }}
+
+          {{ range .Alerts }}
+          🔥 <b>Tên lỗi:</b> {{ .Labels.alertname }}
+          📝 <b>Tóm tắt:</b> {{ .Annotations.summary }}
+          📋 <b>Chi tiết:</b> {{ .Annotations.description }}
+          🖥️ <b>Server:</b> {{ .Labels.instance }}
+          ⚠️ <b>Mức độ:</b> {{ .Labels.severity }}
+          🕒 <b>Thời gian:</b> {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          {{ end }}

@@ -52,7 +52,7 @@ services:
         condition: service_healthy # Chờ MongoDB sẵn sàng
     # KHÔNG có "ports:" → Backend không expose trực tiếp ra ngoài
     volumes:
-      - uploads_data:/app/uploads # Lưu trữ ảnh upload persistently
+      - ./uploads:/app/uploads # Lưu trữ ảnh upload persistently
     healthcheck:
       test:
         [
@@ -107,6 +107,7 @@ services:
       - ./nginx/proxy_headers.conf:/etc/nginx/proxy_headers.conf:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro # Phase 2: SSL certs
       - ./certbot/www:/var/www/certbot:ro # Phase 2: Certbot webroot | mkdir -p ./certbot/www    # Tạo thư mục trước khi chạy
+      - ./uploads:/app/uploads:ro
     depends_on:
       frontend:
         condition: service_healthy
@@ -132,6 +133,4 @@ services:
 
 volumes:
   mongo_data:
-    driver: local
-  uploads_data:
     driver: local

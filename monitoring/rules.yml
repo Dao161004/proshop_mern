@@ -2,10 +2,10 @@ groups:
   - name: cpu_alert
     rules:
       - alert: HighCPU
-        expr: 100 - (avg by(instance)(rate(node_cpu_seconds_total{mode="idle"}[2m])) * 100) > 85
-        for: 2m
+        expr: 100 - (avg by(instance)(rate(node_cpu_seconds_total{mode="idle"}[1m])) * 100) > 85
+        for: 10s
         labels:
           severity: critical
         annotations:
           summary: "CPU > 85%"
-          description: "CPU usage is above 85% for more than 2 minute on instance {{ $labels.instance }}"
+          description: "CPU usage is above 85% on instance {{ $labels.instance }}"
